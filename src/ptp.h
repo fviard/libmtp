@@ -2566,6 +2566,7 @@ uint16_t ptp_usb_event_async	(PTPParams *params, PTPEventCbFn cb, void *user_dat
 uint16_t ptp_usb_event_wait	(PTPParams* params, PTPContainer* event);
 uint16_t ptp_usb_event_check	(PTPParams* params, PTPContainer* event);
 uint16_t ptp_usb_event_check_queue	(PTPParams* params, PTPContainer* event);
+uint16_t ptp_usb_handle_events_timeout_completed (struct timeval *tv, int *completed);
 
 uint16_t ptp_usb_control_get_extended_event_data (PTPParams *params, char *buffer, int *size);
 uint16_t ptp_usb_control_device_reset_request (PTPParams *params);
