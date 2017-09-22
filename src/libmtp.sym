@@ -40,6 +40,7 @@ LIBMTP_Set_Object_u16
 LIBMTP_Set_Object_u8
 LIBMTP_Get_Property_Description
 LIBMTP_Is_Property_Supported
+LIBMTP_Check_Property_Supported
 LIBMTP_Get_Allowed_Property_Values
 LIBMTP_destroy_allowed_values_t
 LIBMTP_new_file_t
