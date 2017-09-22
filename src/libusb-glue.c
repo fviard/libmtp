@@ -130,14 +130,14 @@ static int usb_get_endpoint_status(PTP_USB* ptp_usb, int ep, uint16_t* status);
  *        successful.
  * @param numdevs a pointer to an integer that will hold the number
  *        of devices in the device list if the call was successful.
- * @return 0 if the list was successfull retrieved, any other
+ * @return LIBMTP_OK if the list was successfull retrieved, any other
  *        value means failure.
  */
-int LIBMTP_Get_Supported_Devices_List(LIBMTP_device_entry_t ** const devices, int * const numdevs)
+LIBMTP_OK LIBMTP_Get_Supported_Devices_List(LIBMTP_device_entry_t ** const devices, int * const numdevs)
 {
   *devices = (LIBMTP_device_entry_t *) &mtp_device_table;
   *numdevs = mtp_device_table_size;
-  return 0;
+  return LIBMTP_OK;
 }
 
 
@@ -1626,9 +1626,10 @@ ptp_usb_event_async (PTPParams* params, PTPEventCbFn cb, void *user_data) {
 	return PTP_ERROR_CANCEL;
 }
 
-int LIBMTP_Handle_Events_Timeout_Completed(struct timeval *tv, int *completed) {
-	/* Unsupported */
-	return -12;
+uint16_t
+ptp_usb_handle_events_timeout_completed(struct timeval *tv, int *completed) {
+    /* Unsupported */
+    return PTP_RC_OperationNotSupported;
 }
 
 uint16_t

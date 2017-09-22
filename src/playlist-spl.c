@@ -142,8 +142,8 @@ void spl_to_playlist_t(LIBMTP_mtpdevice_t* device, PTPObjectInfo *oi,
   // make sure the file will be deleted afterwards
   if(unlink(tmpname) < 0)
     LIBMTP_ERROR("failed to delete temp file for %s.spl -> %s, errno=%s\n", pl->name, tmpname, strerror(errno));
-  int ret = LIBMTP_Get_File_To_File_Descriptor(device, pl->playlist_id, fd, NULL, NULL);
-  if( ret < 0 ) {
+  LIBMTP_err_t ret = LIBMTP_Get_File_To_File_Descriptor(device, pl->playlist_id, fd, NULL, NULL);
+  if( ret != LIBMTP_OK ) {
     // FIXME     add_ptp_error_to_errorstack(device, ret, "LIBMTP_Get_Playlist: Could not get .spl playlist file.");
     close(fd);
     LIBMTP_INFO("FIXME closed\n");
@@ -177,9 +177,9 @@ void spl_to_playlist_t(LIBMTP_mtpdevice_t* device, PTPObjectInfo *oi,
  * @param device mtp device pointer
  * @param pl the LIBMTP_playlist_t to convert (pl->playlist_id will be updated
  *           with the newly created object's id)
- * @return 0 on success, any other value means failure.
+ * @return LIBMTP_OK on success, any other value means failure.
  */
-int playlist_t_to_spl(LIBMTP_mtpdevice_t *device,
+LIBMTP_err_t playlist_t_to_spl(LIBMTP_mtpdevice_t *device,
                       LIBMTP_playlist_t * const pl)
 {
   text_t* t;
@@ -233,7 +233,7 @@ int playlist_t_to_spl(LIBMTP_mtpdevice_t *device,
 
   // push the playlist to the device
   lseek(fd, 0, SEEK_SET); // reset file desc. to start of file
-  int ret = LIBMTP_Send_File_From_File_Descriptor(device, fd, f, NULL, NULL);
+  LIBMTP_err_t ret = LIBMTP_Send_File_From_File_Descriptor(device, fd, f, NULL, NULL);
   pl->playlist_id = f->item_id;
   free(f->filename);
   free(f);
@@ -258,11 +258,13 @@ int playlist_t_to_spl(LIBMTP_mtpdevice_t *device,
  * @param device mtp device pointer
  * @param new the LIBMTP_playlist_t to convert (pl->playlist_id will be updated
  *           with the newly created object's id)
- * @return 0 on success, any other value means failure.
+ * @return LIBMTP_OK on success, any other value means failure.
  */
-int update_spl_playlist(LIBMTP_mtpdevice_t *device,
-			  LIBMTP_playlist_t * const newlist)
+LIBMTP_err_t update_spl_playlist(LIBMTP_mtpdevice_t *device,
+                                 LIBMTP_playlist_t * const newlist)
 {
+  LIBMTP_err_t ret;
+
   LIBMTP_PLST_DEBUG("pl->name='%s'\n",newlist->name);
 
   // read in the playlist of interest
@@ -270,7 +272,7 @@ int update_spl_playlist(LIBMTP_mtpdevice_t *device,
   
   // check to see if we found it
   if (!old)
-    return -1;
+    return LIBMTP_ERR_GENERAL;
 
   // check if the playlists match
   int delta = 0;
@@ -287,13 +289,14 @@ int update_spl_playlist(LIBMTP_mtpdevice_t *device,
     LIBMTP_PLST_DEBUG("new tracks detected:\n");
     LIBMTP_PLST_DEBUG("delete old playlist and build a new one\n");
     LIBMTP_PLST_DEBUG(" NOTE: new playlist_id will result!\n");
-    if(LIBMTP_Delete_Object(device, old->playlist_id) != 0)
-      return -1;
+    ret = LIBMTP_Delete_Object(device, old->playlist_id);
+    if(ret != LIBMTP_OK)
+      return ret;
 
     if(strcmp(old->name,newlist->name) == 0)
       LIBMTP_PLST_DEBUG("name unchanged\n");
     else
-      LIBMTP_PLST_DEBUG("name is changing too -> %s\n",newlist->name);
+      LIBMTP_PLST_DEBUG("name is changing too -> %s\n", newlist->name);
 
     return LIBMTP_Create_New_Playlist(device, newlist);
   }
@@ -306,13 +309,13 @@ int update_spl_playlist(LIBMTP_mtpdevice_t *device,
     char* s = malloc(sizeof(char)*(strlen(newlist->name)+5));
     strcpy(s, newlist->name);
     strcat(s,".spl"); // FIXME check for success
-    int ret = LIBMTP_Set_Playlist_Name(device, newlist, s);
+    ret = LIBMTP_Set_Playlist_Name(device, newlist, s);
     free(s);
     return ret;
   }
 
   LIBMTP_PLST_DEBUG("no change\n");
-  return 0; // nothing to be done, success
+  return LIBMTP_OK; // nothing to be done, success
 }
 
 
