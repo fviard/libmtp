@@ -106,8 +106,7 @@ static int find_interface_and_endpoints(libusb_device *dev,
 static void clear_stall(PTP_USB* ptp_usb);
 static int init_ptp_usb(PTPParams* params,
 		PTP_USB* ptp_usb, libusb_device* dev);
-static short ptp_write_func(unsigned long,
-		PTPDataHandler*, void *data, unsigned long*);
+static short ptp_write_func(uint64_t, PTPDataHandler*, void *data, uint64_t*);
 static short ptp_read_func (unsigned long,
 		PTPDataHandler*, void *data, unsigned long*, int);
 static short ptp_read_cancel_func (PTPParams* params,
@@ -1072,15 +1071,15 @@ ptp_read_cancel_func (
 
 static short
 ptp_write_func (
-        unsigned long   size,
+        uint64_t        size,
         PTPDataHandler  *handler,
         void            *data,
-        unsigned long   *written
+        uint64_t        *written
 ) {
+  int ret = LIBUSB_SUCCESS;
   PTP_USB *ptp_usb = (PTP_USB *)data;
+  uint64_t curwrite = 0;
   unsigned long towrite = 0;
-  int ret = 0;
-  unsigned long curwrite = 0;
   unsigned char *bytes;
 
   // This is the largest block we'll need to read in.
@@ -1089,62 +1088,64 @@ ptp_write_func (
     return PTP_ERROR_IO;
   }
   while (curwrite < size) {
-    unsigned long usbwritten = 0;
-    int xwritten = 0;
+    // Libusb bulk transfer expect ints
 
-    towrite = size-curwrite;
-    if (towrite > CONTEXT_BLOCK_SIZE) {
+    if (size - curwrite > CONTEXT_BLOCK_SIZE) {
       towrite = CONTEXT_BLOCK_SIZE;
     } else {
+      towrite = size - curwrite;
       // This magic makes packets the same size that WMP send them.
       if (towrite > ptp_usb->outep_maxpacket && towrite % ptp_usb->outep_maxpacket != 0) {
         towrite -= towrite % ptp_usb->outep_maxpacket;
       }
     }
-    int getfunc_ret = handler->getfunc(NULL, handler->priv,towrite,bytes,&towrite);
+    uint16_t getfunc_ret = handler->getfunc(NULL, handler->priv, towrite, bytes, &towrite);
     if (getfunc_ret != PTP_RC_OK) {
       free(bytes);
       return getfunc_ret;
     }
+    unsigned long usbwritten = 0;
+    int xwritten = 0;
     while (usbwritten < towrite) {
-	    ret = USB_BULK_WRITE(ptp_usb->handle,
-				    ptp_usb->outep,
-				    bytes+usbwritten,
-				    towrite-usbwritten,
-                                    &xwritten,
-				    ptp_usb->timeout);
+      ret = USB_BULK_WRITE(ptp_usb->handle,
+                           ptp_usb->outep,
+                           bytes + usbwritten,
+                           towrite - usbwritten,
+                           &xwritten,
+                           ptp_usb->timeout);
 
-	    LIBMTP_USB_DEBUG("USB OUT==>\n");
+      LIBMTP_USB_DEBUG("USB OUT==>\n");
 
-	    if (ret != LIBUSB_SUCCESS) {
-              free(bytes);
-	      return translate_libusb_error_to_ptp(ret, PTP_ERROR_IO);
-	    }
-	    LIBMTP_USB_DATA(bytes+usbwritten, xwritten, 16);
-	    // check for result == 0 perhaps too.
-	    // Increase counters
-	    ptp_usb->current_transfer_complete += xwritten;
-	    curwrite += xwritten;
-	    usbwritten += xwritten;
+      if (ret != LIBUSB_SUCCESS) {
+        free(bytes);
+        return translate_libusb_error_to_ptp(ret, PTP_ERROR_IO);
+      }
+      LIBMTP_USB_DATA(bytes + usbwritten, xwritten, 16);
+      // check for result == 0 perhaps too.
+      // Increase counters
+      ptp_usb->current_transfer_complete += xwritten;
+      usbwritten += xwritten;
     }
+    curwrite += usbwritten;
+
     // call callback
     if (ptp_usb->callback_active) {
       if (ptp_usb->current_transfer_complete >= ptp_usb->current_transfer_total) {
-	// send last update and disable callback.
-	ptp_usb->current_transfer_complete = ptp_usb->current_transfer_total;
-	ptp_usb->callback_active = 0;
+        // send last update and disable callback.
+        ptp_usb->current_transfer_complete = ptp_usb->current_transfer_total;
+        ptp_usb->callback_active = 0;
       }
       if (ptp_usb->current_transfer_callback != NULL) {
-	ret = ptp_usb->current_transfer_callback(ptp_usb->current_transfer_complete,
-						 ptp_usb->current_transfer_total,
-						 ptp_usb->current_transfer_callback_data);
-	if (ret != 0) {
-          free(bytes);
-	  return PTP_ERROR_CANCEL;
-	}
+        ret = ptp_usb->current_transfer_callback(ptp_usb->current_transfer_complete,
+                            ptp_usb->current_transfer_total,
+                            ptp_usb->current_transfer_callback_data);
+        if (ret != 0) {
+            free(bytes);
+            return PTP_ERROR_CANCEL;
+        }
       }
     }
-    if (xwritten < towrite) /* short writes happen */
+    if (usbwritten < towrite) /* short writes happen */
       break;
   }
   free (bytes);
@@ -1160,12 +1161,12 @@ ptp_write_func (
       LIBMTP_USB_DEBUG("USB OUT==>\n");
       LIBMTP_USB_DEBUG("Zero Write\n");
 
-      ret =USB_BULK_WRITE(ptp_usb->handle,
-			    ptp_usb->outep,
-			    (unsigned char *) "x",
-			    0,
-                            &xwritten,
-			    ptp_usb->timeout);
+      ret = USB_BULK_WRITE(ptp_usb->handle,
+                           ptp_usb->outep,
+                           (unsigned char *) "x",
+                           0,
+                           &xwritten,
+                           ptp_usb->timeout);
     }
   }
 
@@ -1272,7 +1273,7 @@ ptp_usb_sendreq (PTPParams* params, PTPContainer* req, int dataphase)
 	uint16_t ret;
 	PTPUSBBulkContainer usbreq;
 	PTPDataHandler	memhandler;
-	unsigned long written = 0;
+	uint64_t written = 0;
 	unsigned long towrite;
 
         LIBMTP_USB_DEBUG("REQUEST: 0x%04x, %s\n", req->Code, ptp_get_opcode_name(params, req->Code));
@@ -1291,7 +1292,7 @@ ptp_usb_sendreq (PTPParams* params, PTPContainer* req, int dataphase)
 	/* send it to responder */
 	towrite = PTP_USB_BULK_REQ_LEN-(sizeof(uint32_t)*(5-req->Nparam));
 	ptp_init_send_memory_handler (&memhandler, (unsigned char*)&usbreq, towrite);
-	ret=ptp_write_func(
+	ret = ptp_write_func(
 		towrite,
 		&memhandler,
 		params->data,
@@ -1300,7 +1301,7 @@ ptp_usb_sendreq (PTPParams* params, PTPContainer* req, int dataphase)
 	ptp_exit_send_memory_handler (&memhandler);
 	if (ret == PTP_RC_OK && written != towrite) {
 		libusb_glue_error (params,
-			"PTP: request code 0x%04x sending req wrote only %ld bytes instead of %d",
+			"PTP: request code 0x%04x sending req wrote only %llu bytes instead of %d",
 			req->Code, written, towrite
 		);
 		ret = PTP_ERROR_IO;
@@ -1314,7 +1315,7 @@ ptp_usb_senddata (PTPParams* params, PTPContainer* ptp,
 ) {
 	uint16_t ret;
 	int wlen, datawlen;
-	unsigned long written;
+	uint64_t written;
 	PTPUSBBulkContainer usbdata;
 	uint64_t bytes_left_to_transfer;
 	PTPDataHandler memhandler;
@@ -1359,12 +1360,10 @@ ptp_usb_senddata (PTPParams* params, PTPContainer* ptp,
 	}
 	if (size <= datawlen) return ret;
 	/* if everything OK send the rest */
-	bytes_left_to_transfer = size-datawlen;
+	bytes_left_to_transfer = size - datawlen;
 	ret = PTP_RC_OK;
 	while(bytes_left_to_transfer > 0) {
-		int max_long_transfer = ULONG_MAX + 1 - packet_size;
-		ret = ptp_write_func (bytes_left_to_transfer > max_long_transfer ? max_long_transfer : bytes_left_to_transfer,
-			handler, params->data, &written);
+		ret = ptp_write_func (bytes_left_to_transfer, handler, params->data, &written);
 		if (ret != PTP_RC_OK)
 			break;
 		if (written == 0) {
