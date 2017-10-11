@@ -1114,6 +1114,8 @@ LIBMTP_err_t LIBMTP_Set_Object_Filename(LIBMTP_mtpdevice_t *, uint32_t , char *)
  */
 typedef void(* LIBMTP_event_cb_fn) (int, LIBMTP_event_t, uint32_t, void *);
 LIBMTP_err_t LIBMTP_Read_Event(LIBMTP_mtpdevice_t *, LIBMTP_event_t *, uint32_t *);
+LIBMTP_err_t LIBMTP_Read_Event_With_Timeout(LIBMTP_mtpdevice_t *, LIBMTP_event_t *,
+                                            uint32_t *, int);
 LIBMTP_err_t LIBMTP_Read_Event_Async(LIBMTP_mtpdevice_t *, LIBMTP_event_cb_fn, void *);
 int LIBMTP_Handle_Events_Timeout_Completed(struct timeval *, int *);
 

@@ -1059,7 +1059,7 @@ ptp_read_cancel_func (
   // Probably a "transfert cancelled" event will be raised.
   // We have to clear it or a device like the "GoPro" will not reply anymore after
   memset(&MyEvent,0,sizeof(MyEvent));
-  ptp_usb_event_check(params, &MyEvent);
+  ptp_usb_event_check(params, &MyEvent, 300);
 
   /* Restore previous values */
   ptp_usb->callback_active = old_callback_active;
@@ -1651,12 +1651,19 @@ ptp_usb_getresp (PTPParams* params, PTPContainer* resp)
 
 /* Event handling functions */
 
-/* PTP Events wait for or check mode */
-#define PTP_EVENT_CHECK			0x0000	/* waits for */
-#define PTP_EVENT_CHECK_FAST		0x0001	/* checks */
-
+/**
+ * Retrieve any available event or wait until timeout
+ * for any event.
+ * @param params a pointer to PTPParams of the current target
+ * @param event contains a pointer to be filled in with the event retrieved if the call
+ * is successful.
+ * @param timeout in ms > 0 to wait for an event the specified amount of time,
+ *                -1 to wait the default ptp timeout time
+ *                or 0 for infinite wait
+ * @return LIBMTP_OK on success (event available), any other on error or timeout.
+ */
 static inline uint16_t
-ptp_usb_event (PTPParams* params, PTPContainer* event, int wait)
+ptp_usb_event (PTPParams* params, PTPContainer* event, int timeout)
 {
 	uint16_t ret;
 	int result; // libusb return code
@@ -1670,50 +1677,24 @@ ptp_usb_event (PTPParams* params, PTPContainer* event, int wait)
 		return PTP_ERROR_BADPARAM;
 	ptp_usb = (PTP_USB *)(params->data);
 
-	ret = PTP_RC_OK;
-	switch(wait) {
-	case PTP_EVENT_CHECK:
-                result = USB_BULK_READ(ptp_usb->handle,
-				     ptp_usb->intep,
-				     (unsigned char *) &usbevent,
-				     sizeof(usbevent),
-				     &xread,
-				     0);
-		if (result < 0 || xread == 0)
-		  result = USB_BULK_READ(ptp_usb->handle,
-					 ptp_usb->intep,
-					 (unsigned char *) &usbevent,
-					 sizeof(usbevent),
-				         &xread,
-					 0);
-		//if (result < 0) ret = PTP_ERROR_IO;
-		ret = translate_libusb_error_to_ptp(result, PTP_ERROR_IO);
-		break;
-	case PTP_EVENT_CHECK_FAST:
-                result = USB_BULK_READ(ptp_usb->handle,
-				     ptp_usb->intep,
-				     (unsigned char *) &usbevent,
-				     sizeof(usbevent),
-				     &xread,
-				     ptp_usb->timeout);
-		if (result < 0 || xread == 0)
-		  result = USB_BULK_READ(ptp_usb->handle,
-					 ptp_usb->intep,
-					 (unsigned char *) &usbevent,
-					 sizeof(usbevent),
-				         &xread,
-					 ptp_usb->timeout);
-		//if (result < 0) ret = PTP_ERROR_IO;
-		ret = translate_libusb_error_to_ptp(result, PTP_ERROR_IO);
-		break;
-	default:
-		ret = PTP_ERROR_BADPARAM;
-		break;
-	}
+	if (timeout < 0)
+		timeout = get_timeout(ptp_usb);
+
+	result = USB_BULK_READ(ptp_usb->handle,
+												 ptp_usb->intep,
+												 (unsigned char *) &usbevent,
+												 sizeof(usbevent),
+												 &xread,
+												 timeout);
+	ret = translate_libusb_error_to_ptp(result, PTP_ERROR_IO);
+
 	if (ret != PTP_RC_OK) {
-		if (ret != PTP_ERROR_TIMEOUT || (wait != PTP_EVENT_CHECK_FAST))
+		if (ret != PTP_ERROR_TIMEOUT || (timeout == 0)) {
+			// any error or "wait" mode called that is not supposed
+			// to timeout.
 			libusb_glue_error (params,
-				"PTP: reading event an error 0x%04x occurred", ret);
+				"PTP: reading event an error 0x%04x occurred\n", ret);
+		}
 		return ret;
 	}
 
@@ -1740,15 +1721,15 @@ ptp_usb_event (PTPParams* params, PTPContainer* event, int wait)
 }
 
 uint16_t
-ptp_usb_event_check (PTPParams* params, PTPContainer* event) {
+ptp_usb_event_check (PTPParams* params, PTPContainer* event, int timeout) {
 
-	return ptp_usb_event (params, event, PTP_EVENT_CHECK_FAST);
+	return ptp_usb_event (params, event, timeout);
 }
 
 uint16_t
 ptp_usb_event_wait (PTPParams* params, PTPContainer* event) {
 
-	return ptp_usb_event (params, event, PTP_EVENT_CHECK);
+	return ptp_usb_event (params, event, 0);
 }
 
 static void
