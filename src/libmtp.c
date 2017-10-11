@@ -2215,9 +2215,42 @@ LIBMTP_err_t LIBMTP_Read_Event(LIBMTP_mtpdevice_t *device, LIBMTP_event_t *event
    * unless we know we are the sole user on the device. A spinlock or
    * mutex in the LIBMTP_mtpdevice_t is needed for this to work.
    */
+  return LIBMTP_Read_Event_With_Timeout(device, event, out1, 0);
+}
+
+/**
+ * To read events sent by the device, repeatedly call this function from a secondary
+ * thread until the return value is < 0.
+ *
+ * @param device a pointer to the MTP device to poll for events.
+ * @param event error
+ * @param out1 contains the param1 value from the raw event.
+ * @param timeout timeout to wait for (in milliseconds)
+ *                > 0 to wait for an event the specified amount of time,
+ *                -1 to wait the default ptp timeout time
+ *                or 0 for an infinite wait
+ * @return LIBMTP_OK on success, any other value means the polling loop shall be
+ * terminated immediately for this session.
+ */
+LIBMTP_err_t LIBMTP_Read_Event_With_Timeout(LIBMTP_mtpdevice_t *device, LIBMTP_event_t *event, uint32_t *out1, int timeout)
+{
+   /*
+   * FIXME: Potential race-condition here, if client deallocs device
+   * while we're *not* waiting for input. As we'll be waiting for
+   * input most of the time, it's unlikely but still worth considering
+   * for improvement. Also we cannot affect the state of the cache etc
+   * unless we know we are the sole user on the device. A spinlock or
+   * mutex in the LIBMTP_mtpdevice_t is needed for this to work.
+   */
+  if (!device)
+      return LIBMTP_ERR_BAD_PARAM;
+
   PTPParams *params = (PTPParams *) device->params;
+  if (!params)
+      return LIBMTP_ERR_BAD_PARAM;
   PTPContainer ptp_event;
-  uint16_t ret = ptp_usb_event_wait(params, &ptp_event);
+
+  uint16_t ret = ptp_usb_event_check(params, &ptp_event, timeout);
 
   if (ret != PTP_RC_OK) {
     /* Device is closing down or other fatal stuff, exit thread */

@@ -112,3 +112,4 @@ LIBMTP_EndEditObject
 LIBMTP_TruncateObject
 LIBMTP_Check_Capability
 LIBMTP_Custom_Operation
+LIBMTP_Read_Event_With_Timeout

@@ -1682,8 +1682,9 @@ ptp_usb_event(PTPParams* params, PTPContainer* event, int wait) {
     return ret;
 }
 
+// timeout param is not taken into account with libopenusb
 uint16_t
-ptp_usb_event_check(PTPParams* params, PTPContainer* event) {
+ptp_usb_event_check(PTPParams* params, PTPContainer* event, int timeout) {
 
     return ptp_usb_event(params, event, PTP_EVENT_CHECK_FAST);
 }
