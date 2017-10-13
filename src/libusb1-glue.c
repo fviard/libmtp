@@ -1319,11 +1319,6 @@ ptp_usb_senddata (PTPParams* params, PTPContainer* ptp,
 	PTPUSBBulkContainer usbdata;
 	uint64_t bytes_left_to_transfer;
 	PTPDataHandler memhandler;
-	unsigned long packet_size;
-	PTP_USB *ptp_usb = (PTP_USB *) params->data;
-
-	packet_size = ptp_usb->outep_maxpacket;
-
 
 	LIBMTP_USB_DEBUG("SEND DATA PHASE\n");
 

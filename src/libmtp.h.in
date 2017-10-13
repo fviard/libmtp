@@ -471,6 +471,27 @@ typedef enum {
   LIBMTP_ERR_ACCESS_DENIED  = -12
 } LIBMTP_err_t;
 
+/**
+ * LIBMTP Event structure
+ * TODO: add all externally visible events here
+ */
+typedef enum {
+  LIBMTP_EVENT_NONE,
+  LIBMTP_EVENT_STORE_ADDED,
+  LIBMTP_EVENT_STORE_REMOVED,
+  LIBMTP_EVENT_OBJECT_ADDED,
+  LIBMTP_EVENT_OBJECT_REMOVED,
+} LIBMTP_event_t;
+
+/**
+ * LIBMTP Storage sortby orders list
+ */
+typedef enum {
+  LIBMTP_STORAGE_SORTBY_NOTSORTED = 0,
+  LIBMTP_STORAGE_SORTBY_FREESPACE = 1,
+  LIBMTP_STORAGE_SORTBY_MAXSPACE  = 2
+} LIBMTP_storage_sortby_t;
+
 
 typedef struct LIBMTP_device_entry_struct LIBMTP_device_entry_t; /**< @see LIBMTP_device_entry_struct */
 typedef struct LIBMTP_raw_device_struct LIBMTP_raw_device_t; /**< @see LIBMTP_raw_device_struct */
@@ -482,10 +503,12 @@ typedef struct LIBMTP_file_struct LIBMTP_file_t; /**< @see LIBMTP_file_struct */
 typedef struct LIBMTP_track_struct LIBMTP_track_t; /**< @see LIBMTP_track_struct */
 typedef struct LIBMTP_playlist_struct LIBMTP_playlist_t; /**< @see LIBMTP_playlist_struct */
 typedef struct LIBMTP_album_struct LIBMTP_album_t; /**< @see LIBMTP_album_struct */
-typedef struct LIBMTP_folder_struct LIBMTP_folder_t; /**< @see LIBMTP_folder_t */
-typedef struct LIBMTP_object_struct LIBMTP_object_t; /**< @see LIBMTP_object_t */
-typedef struct LIBMTP_filesampledata_struct LIBMTP_filesampledata_t; /**< @see LIBMTP_filesample_t */
-typedef struct LIBMTP_devicestorage_struct LIBMTP_devicestorage_t; /**< @see LIBMTP_devicestorage_t */
+typedef struct LIBMTP_folder_struct LIBMTP_folder_t; /**< @see LIBMTP_folder_struct */
+typedef struct LIBMTP_object_struct LIBMTP_object_t; /**< @see LIBMTP_object_struct */
+typedef struct LIBMTP_filesampledata_struct LIBMTP_filesampledata_t; /**< @see LIBMTP_filesample_struct */
+typedef struct LIBMTP_devicestorage_struct LIBMTP_devicestorage_t; /**< @see LIBMTP_devicestorage_struct */
+typedef struct LIBMTP_eventdata_struct LIBMTP_eventdata_t; /**< @see LIBMTP_devicestorage_struct */
+
 
 /**
  * The callback type definition. Notice that a progress percentage ratio
@@ -818,18 +841,12 @@ struct LIBMTP_devicestorage_struct {
   LIBMTP_devicestorage_t *prev; /**< Previous storage */
 };
 
-/**
- * LIBMTP Event structure
- * TODO: add all externally visible events here
- */
-enum LIBMTP_event_enum {
-  LIBMTP_EVENT_NONE,
-  LIBMTP_EVENT_STORE_ADDED,
-  LIBMTP_EVENT_STORE_REMOVED,
-  LIBMTP_EVENT_OBJECT_ADDED,
-  LIBMTP_EVENT_OBJECT_REMOVED,
+struct LIBMTP_eventdata_struct {
+  uint32_t param1; /**< Param1 of a PTP event, as is */
+  uint32_t param2; /**< Param2 of a PTP event, as is */
+  uint32_t param3; /**< Param3 of a PTP event, as is */
 };
-typedef enum LIBMTP_event_enum LIBMTP_event_t;
+
 
 /** @} */
 
@@ -889,16 +906,6 @@ void LIBMTP_Dump_Errorstack(LIBMTP_mtpdevice_t*);
  **/
 int LIBMTP_Check_Capability(LIBMTP_mtpdevice_t *, LIBMTP_devicecap_t);
 
-
-/**
- * LIBMTP Storage sortby orders list
- */
-enum LIBMTP_storage_sortby_enum {
-  LIBMTP_STORAGE_SORTBY_NOTSORTED = 0,
-  LIBMTP_STORAGE_SORTBY_FREESPACE = 1,
-  LIBMTP_STORAGE_SORTBY_MAXSPACE  = 2
-};
-typedef enum LIBMTP_storage_sortby_enum LIBMTP_storage_sortby_t;
 
 LIBMTP_err_t LIBMTP_Get_Storage(LIBMTP_mtpdevice_t *, int const);
 LIBMTP_err_t LIBMTP_Format_Storage(LIBMTP_mtpdevice_t *, LIBMTP_devicestorage_t *);
@@ -1115,7 +1122,7 @@ LIBMTP_err_t LIBMTP_Set_Object_Filename(LIBMTP_mtpdevice_t *, uint32_t , char *)
 typedef void(* LIBMTP_event_cb_fn) (int, LIBMTP_event_t, uint32_t, void *);
 LIBMTP_err_t LIBMTP_Read_Event(LIBMTP_mtpdevice_t *, LIBMTP_event_t *, uint32_t *);
 LIBMTP_err_t LIBMTP_Read_Event_With_Timeout(LIBMTP_mtpdevice_t *, LIBMTP_event_t *,
-                                            uint32_t *, int);
+                                            LIBMTP_eventdata_t *, int);
 LIBMTP_err_t LIBMTP_Read_Event_Async(LIBMTP_mtpdevice_t *, LIBMTP_event_cb_fn, void *);
 int LIBMTP_Handle_Events_Timeout_Completed(struct timeval *, int *);
 
