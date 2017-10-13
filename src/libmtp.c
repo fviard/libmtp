@@ -221,8 +221,9 @@ static LIBMTP_err_t set_object_filename(LIBMTP_mtpdevice_t *device,
                 const char **newname);
 static char *generate_unique_filename(PTPParams* params, char const * const filename);
 static LIBMTP_err_t check_filename_exists(PTPParams* params, char const * const filename);
-static void LIBMTP_Handle_Event(PTPContainer *ptp_event,
-                                LIBMTP_event_t *event, uint32_t *out1);
+static LIBMTP_err_t LIBMTP_Handle_Event(PTPContainer *ptp_event,
+                                        LIBMTP_event_t *event,
+                                        LIBMTP_eventdata_t *event_data);
 
 /**
  * These are to wrap the get/put handlers to convert from the MTP types to PTP types
@@ -2195,6 +2196,8 @@ LIBMTP_mtpdevice_t *LIBMTP_Open_Raw_Device(LIBMTP_raw_device_t *rawdevice)
 }
 
 /**
+ * THIS FUNCTION IS DEPRECATED. PLEASE UPDATE YOUR CODE IN ORDER
+ * NOT TO USE IT.
  * To read events sent by the device, repeatedly call this function from a secondary
  * thread until the return value is < 0.
  *
@@ -2215,7 +2218,11 @@ LIBMTP_err_t LIBMTP_Read_Event(LIBMTP_mtpdevice_t *device, LIBMTP_event_t *event
    * unless we know we are the sole user on the device. A spinlock or
    * mutex in the LIBMTP_mtpdevice_t is needed for this to work.
    */
-  return LIBMTP_Read_Event_With_Timeout(device, event, out1, 0);
+  LIBMTP_eventdata_t event_data;
+  LIBMTP_err_t ret = LIBMTP_Read_Event_With_Timeout(device, event, &event_data, 0);
+  if (ret == LIBMTP_OK)
+    *out1 = event_data.param1;
+  return ret;
 }
 
 /**
@@ -2224,7 +2231,7 @@ LIBMTP_err_t LIBMTP_Read_Event(LIBMTP_mtpdevice_t *device, LIBMTP_event_t *event
  *
  * @param device a pointer to the MTP device to poll for events.
  * @param event error
- * @param out1 contains the param1 value from the raw event.
+ * @param event_data contains the param1 value from the raw event.
  * @param timeout timeout to wait for (in milliseconds)
  *                > 0 to wait for an event the specified amount of time,
  *                -1 to wait the default ptp timeout time
@@ -2232,7 +2239,7 @@ LIBMTP_err_t LIBMTP_Read_Event(LIBMTP_mtpdevice_t *device, LIBMTP_event_t *event
  * @return LIBMTP_OK on success, any other value means the polling loop shall be
  * terminated immediately for this session.
  */
-LIBMTP_err_t LIBMTP_Read_Event_With_Timeout(LIBMTP_mtpdevice_t *device, LIBMTP_event_t *event, uint32_t *out1, int timeout)
+LIBMTP_err_t LIBMTP_Read_Event_With_Timeout(LIBMTP_mtpdevice_t *device, LIBMTP_event_t *event, LIBMTP_eventdata_t *event_data, int timeout)
 {
    /*
    * FIXME: Potential race-condition here, if client deallocs device
@@ -2256,17 +2263,24 @@ LIBMTP_err_t LIBMTP_Read_Event_With_Timeout(LIBMTP_mtpdevice_t *device, LIBMTP_e
     /* Device is closing down or other fatal stuff, exit thread */
     return translate_ptp_error_to_libmtp(ret);
   }
-  LIBMTP_Handle_Event(&ptp_event, event, out1);
+  LIBMTP_Handle_Event(&ptp_event, event, event_data);
   return LIBMTP_OK;
 }
 
-void LIBMTP_Handle_Event(PTPContainer *ptp_event,
-                         LIBMTP_event_t *event, uint32_t *out1) {
+LIBMTP_err_t LIBMTP_Handle_Event(PTPContainer *ptp_event,
+                         LIBMTP_event_t *event,
+                         LIBMTP_eventdata_t *event_data) {
   uint16_t code;
   uint32_t session_id;
   uint32_t param1;
 
+  if (!ptp_event || !event || !event_data)
+      return LIBMTP_ERR_BAD_PARAM;
+
   *event = LIBMTP_EVENT_NONE;
+  event_data->param1 = 0;
+  event_data->param2 = 0;
+  event_data->param3 = 0;
 
   /* Process the event */
   code = ptp_event->Code;
@@ -2283,24 +2297,24 @@ void LIBMTP_Handle_Event(PTPContainer *ptp_event,
     case PTP_EC_ObjectAdded:
       LIBMTP_INFO("Received event PTP_EC_ObjectAdded in session %u\n", session_id);
       *event = LIBMTP_EVENT_OBJECT_ADDED;
-      *out1 = param1;
+      event_data->param1 = param1;
       break;
     case PTP_EC_ObjectRemoved:
       LIBMTP_INFO("Received event PTP_EC_ObjectRemoved in session %u\n", session_id);
       *event = LIBMTP_EVENT_OBJECT_REMOVED;
-      *out1 = param1;
+      event_data->param1 = param1;
       break;
     case PTP_EC_StoreAdded:
       LIBMTP_INFO("Received event PTP_EC_StoreAdded in session %u\n", session_id);
       /* TODO: rescan storages */
       *event = LIBMTP_EVENT_STORE_ADDED;
-      *out1 = param1;
+      event_data->param1 = param1;
       break;
     case PTP_EC_StoreRemoved:
       LIBMTP_INFO("Received event PTP_EC_StoreRemoved in session %u\n", session_id);
       /* TODO: rescan storages */
       *event = LIBMTP_EVENT_STORE_REMOVED;
-      *out1 = param1;
+      event_data->param1 = param1;
       break;
     case PTP_EC_DevicePropChanged:
       LIBMTP_INFO("Received event PTP_EC_DevicePropChanged in session %u\n", session_id);
@@ -2337,19 +2351,21 @@ void LIBMTP_Handle_Event(PTPContainer *ptp_event,
       LIBMTP_INFO( "Received unknown event in session %u\n", session_id);
       break;
   }
+
+  return LIBMTP_OK;
 }
 
 static void LIBMTP_Read_Event_Cb(PTPParams *params, uint16_t ret_code,
                                  PTPContainer *ptp_event, void *user_data) {
   event_cb_data_t *data = user_data;
   LIBMTP_event_t event = LIBMTP_EVENT_NONE;
-  uint32_t param1 = 0;
+  LIBMTP_eventdata_t event_data;
   int handler_ret;
 
   switch (ret_code) {
   case PTP_RC_OK:
     handler_ret = LIBMTP_HANDLER_RETURN_OK;
-    LIBMTP_Handle_Event(ptp_event, &event, &param1);
+    LIBMTP_Handle_Event(ptp_event, &event, &event_data);
     break;
   case PTP_ERROR_CANCEL:
     handler_ret = LIBMTP_HANDLER_RETURN_CANCEL;
@@ -2359,7 +2375,7 @@ static void LIBMTP_Read_Event_Cb(PTPParams *params, uint16_t ret_code,
     break;
   }
 
-  data->cb(handler_ret, event, param1, data->user_data);
+  data->cb(handler_ret, event, event_data.param1, data->user_data);
   free(data);
 }
 
