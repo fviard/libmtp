@@ -1920,18 +1920,11 @@ static int init_ptp_usb(PTPParams* params, PTP_USB* ptp_usb, libusb_device* dev)
       libusb_kernel_driver_active(device_handle, ptp_usb->interface)
   ) {
       if (LIBUSB_SUCCESS != libusb_detach_kernel_driver(device_handle, ptp_usb->interface)) {
-	perror("libusb_detach_kernel_driver() failed, continuing anyway...");
+        perror("libusb_detach_kernel_driver() failed, continuing anyway...");
       }
   }
 
-  usbresult = libusb_claim_interface(device_handle, ptp_usb->interface);
-
-  if (usbresult != 0) {
-    fprintf(stderr, "error returned by libusb_claim_interface() = %d\n", usbresult);
-    return translate_libusb_error_to_ptp(usbresult, PTP_ERROR_IO);
-  }
-
-  /*
+   /*
    * Check if the config is set to something else than what we want
    * to use. Only set the configuration if we absolutely have to.
    * Also do not bail out if we fail.
@@ -1943,7 +1936,14 @@ static int init_ptp_usb(PTPParams* params, PTP_USB* ptp_usb, libusb_device* dev)
   if (ret != LIBUSB_SUCCESS) {
     perror("libusb_get_active_config_descriptor(1) failed");
     fprintf(stderr, "no active configuration, trying to set configuration\n");
-    if (libusb_set_configuration(device_handle, ptp_usb->config) != LIBUSB_SUCCESS) {
+    ret = libusb_set_configuration(device_handle, ptp_usb->config);
+    if (ret == LIBUSB_ERROR_BUSY || ret == LIBUSB_ERROR_NO_DEVICE) {
+      // Set configuration will fail if the device is already claimed
+      // or in use by another process.
+      perror("libusb_set_configuration() failed, no device or it is already in use");
+      return translate_libusb_error_to_ptp(ret, PTP_ERROR_IO);
+    }
+    if (ret != LIBUSB_SUCCESS) {
       perror("libusb_set_configuration() failed, continuing anyway...");
     }
     ret = libusb_get_active_config_descriptor(dev, &config);
@@ -1952,9 +1952,18 @@ static int init_ptp_usb(PTPParams* params, PTP_USB* ptp_usb, libusb_device* dev)
       return translate_libusb_error_to_ptp(ret, PTP_ERROR_IO);
     }
   }
+
   if (config->bConfigurationValue != ptp_usb->config) {
     fprintf(stderr, "desired configuration different from current, trying to set configuration\n");
-    if (libusb_set_configuration(device_handle, ptp_usb->config)) {
+    ret = libusb_set_configuration(device_handle, ptp_usb->config);
+    if (ret == LIBUSB_ERROR_BUSY || ret == LIBUSB_ERROR_NO_DEVICE) {
+      // Set configuration will fail if the device is already claimed
+      // or in use by another process.
+      libusb_free_config_descriptor(config);
+      perror("libusb_set_configuration() failed, no device or it is already in use");
+      return translate_libusb_error_to_ptp(ret, PTP_ERROR_IO);
+    }
+    if (ret != LIBUSB_SUCCESS) {
       perror("libusb_set_configuration() failed, continuing anyway...");
     }
     /* Re-fetch the config descriptor if we changed */
@@ -1964,6 +1973,12 @@ static int init_ptp_usb(PTPParams* params, PTP_USB* ptp_usb, libusb_device* dev)
       perror("libusb_get_active_config_descriptor(2) failed");
       return translate_libusb_error_to_ptp(ret, PTP_ERROR_IO);
     }
+  }
+
+  usbresult = libusb_claim_interface(device_handle, ptp_usb->interface);
+  if (usbresult != 0) {
+    fprintf(stderr, "error returned by libusb_claim_interface() = %d\n", usbresult);
+    return translate_libusb_error_to_ptp(usbresult, PTP_ERROR_IO);
   }
 
   /*
