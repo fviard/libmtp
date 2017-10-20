@@ -1874,48 +1874,76 @@ static void parse_extension_descriptor(LIBMTP_mtpdevice_t *mtpdevice,
 }
 
 /**
+ * THIS FUNCTION IS DEPRECATED. PLEASE UPDATE YOUR CODE IN ORDER
+ * NOT TO USE IT.
  * This function opens a device from a raw device. It is the
  * preferred way to access devices in the new interface where
  * several devices can come and go as the library is working
  * on a certain device.
  * @param rawdevice the raw device to open a "real" device for.
  * @return an open device.
+ * @see LIBMTP_Open_Raw_Device_Uncached_V2()
  */
 LIBMTP_mtpdevice_t *LIBMTP_Open_Raw_Device_Uncached(LIBMTP_raw_device_t *rawdevice)
 {
-  LIBMTP_mtpdevice_t *mtp_device;
+  LIBMTP_mtpdevice_t *mtp_device = NULL;
+  LIBMTP_err_t ret;
+
+  ret = LIBMTP_Open_Raw_Device_Uncached_V2(rawdevice, &mtp_device);
+  if (ret != LIBMTP_OK)
+    return NULL;
+  return mtp_device;
+}
+
+/**
+ * This function opens a device from a raw device. It is the
+ * preferred way to access devices in the new interface where
+ * several devices can come and go as the library is working
+ * on a certain device.
+ * @param raw_device the raw device to open a "real" device for.
+ * @param mtp_device a pointer to a pointer that will hold the opened device
+ * @return LIBMTP_OK on success, any other value means failure.
+ */
+LIBMTP_err_t LIBMTP_Open_Raw_Device_Uncached_V2(LIBMTP_raw_device_t *raw_device,
+                                                 LIBMTP_mtpdevice_t **mtp_device)
+{
+  LIBMTP_mtpdevice_t *tmp_device;
   uint8_t bs = 0;
   PTPParams *current_params;
   PTP_USB *ptp_usb;
   LIBMTP_error_number_t err;
+  uint16_t ptp_err;
   int i;
 
+  if (!raw_device || !mtp_device)
+    return LIBMTP_ERR_BAD_PARAM;
+
   /* Allocate dynamic space for our device */
-  mtp_device = (LIBMTP_mtpdevice_t *) malloc(sizeof(LIBMTP_mtpdevice_t));
+  tmp_device = (LIBMTP_mtpdevice_t *) malloc(sizeof(LIBMTP_mtpdevice_t));
   /* Check if there was a memory allocation error */
-  if(mtp_device == NULL) {
+  if(tmp_device == NULL) {
     /* There has been an memory allocation error. We are going to ignore this
        device and attempt to continue */
 
     /* TODO: This error statement could probably be a bit more robust */
     LIBMTP_ERROR("LIBMTP PANIC: connect_usb_devices encountered a memory "
-	    "allocation error with device %d on bus %d, trying to continue",
-	    rawdevice->devnum, rawdevice->bus_location);
+                 "allocation error with device %d on bus %d, trying to continue",
+                 raw_device->devnum, raw_device->bus_location);
 
-    return NULL;
+    return LIBMTP_ERR_NO_MEMORY;
   }
-  memset(mtp_device, 0, sizeof(LIBMTP_mtpdevice_t));
+  memset(tmp_device, 0, sizeof(LIBMTP_mtpdevice_t));
   // Non-cached by default
-  mtp_device->cached = 0;
+  tmp_device->cached = 0;
 
   /* Create PTP params */
   current_params = (PTPParams *) malloc(sizeof(PTPParams));
   if (current_params == NULL) {
-    free(mtp_device);
-    return NULL;
+    free(tmp_device);
+    return LIBMTP_ERR_NO_MEMORY;
   }
   memset(current_params, 0, sizeof(PTPParams));
-  current_params->device_flags = rawdevice->device_entry.device_flags;
+  current_params->device_flags = raw_device->device_entry.device_flags;
   current_params->nrofobjects = 0;
   current_params->cachetime = 2;
   current_params->objects = NULL;
@@ -1934,56 +1962,58 @@ LIBMTP_mtpdevice_t *LIBMTP_Open_Raw_Device_Uncached(LIBMTP_raw_device_t *rawdevi
   if(current_params->cd_locale_to_ucs2 == (iconv_t) -1 ||
      current_params->cd_ucs2_to_locale == (iconv_t) -1) {
     LIBMTP_ERROR("LIBMTP PANIC: Cannot open iconv() converters to/from UCS-2!\n"
-	    "Too old stdlibc, glibc and libiconv?\n");
+                 "Too old stdlibc, glibc and libiconv?\n");
     free(current_params);
-    free(mtp_device);
-    return NULL;
+    free(tmp_device);
+    return LIBMTP_ERR_GENERAL;
   }
-  mtp_device->params = current_params;
+  tmp_device->params = current_params;
 
   /* Create usbinfo, this also opens the session */
-  err = configure_usb_device(rawdevice,
-			     current_params,
-			     &mtp_device->usbinfo);
+  err = configure_usb_device(raw_device,
+                             current_params,
+                             &tmp_device->usbinfo);
   if (err != LIBMTP_ERROR_NONE) {
     free(current_params);
-    free(mtp_device);
-    return NULL;
+    free(tmp_device);
+    //TODO @ TO FIX cascade error
+    return LIBMTP_ERR_IO;
   }
-  ptp_usb = (PTP_USB*) mtp_device->usbinfo;
+  ptp_usb = (PTP_USB*) tmp_device->usbinfo;
   /* Set pointer back to params */
   ptp_usb->params = current_params;
 
   /* Cache the device information for later use */
-  if (ptp_getdeviceinfo(current_params,
-			&current_params->deviceinfo) != PTP_RC_OK) {
+  ptp_err = ptp_getdeviceinfo(current_params, &current_params->deviceinfo);
+  if (ptp_err != PTP_RC_OK)
+  {
     LIBMTP_ERROR("LIBMTP PANIC: Unable to read device information on device "
-	    "%d on bus %d, trying to continue",
-	    rawdevice->devnum, rawdevice->bus_location);
+                 "%d on bus %d, trying to continue",
+                 raw_device->devnum, raw_device->bus_location);
 
     /* Prevent memory leaks for this device */
-    free(mtp_device->usbinfo);
-    free(mtp_device->params);
+    free(tmp_device->usbinfo);
+    free(tmp_device->params);
     current_params = NULL;
-    free(mtp_device);
-    return NULL;
+    free(tmp_device);
+    return translate_ptp_error_to_libmtp(ptp_err);
   }
 
   /* Check: if this is a PTP device, is it really tagged as MTP? */
   if (current_params->deviceinfo.VendorExtensionID != 0x00000006) {
     LIBMTP_ERROR("LIBMTP WARNING: no MTP vendor extension on device "
-		 "%d on bus %d",
-		 rawdevice->devnum, rawdevice->bus_location);
+                 "%d on bus %d",
+                 raw_device->devnum, raw_device->bus_location);
     LIBMTP_ERROR("LIBMTP WARNING: VendorExtensionID: %08x",
-		 current_params->deviceinfo.VendorExtensionID);
+                 current_params->deviceinfo.VendorExtensionID);
     LIBMTP_ERROR("LIBMTP WARNING: VendorExtensionDesc: %s",
-		 current_params->deviceinfo.VendorExtensionDesc);
+                 current_params->deviceinfo.VendorExtensionDesc);
     LIBMTP_ERROR("LIBMTP WARNING: this typically means the device is PTP "
-		 "(i.e. a camera) but not an MTP device at all. "
-		 "Trying to continue anyway.");
+                 "(i.e. a camera) but not an MTP device at all. "
+                 "Trying to continue anyway.");
   }
 
-  parse_extension_descriptor(mtp_device,
+  parse_extension_descriptor(tmp_device,
                              current_params->deviceinfo.VendorExtensionDesc);
 
   /*
@@ -1993,7 +2023,7 @@ LIBMTP_mtpdevice_t *LIBMTP_Open_Raw_Device_Uncached(LIBMTP_raw_device_t *rawdevi
    * I just know only NWZs have it.
    */
   {
-    LIBMTP_device_extension_t *tmpext = mtp_device->extensions;
+    LIBMTP_device_extension_t *tmpext = tmp_device->extensions;
     int is_microsoft_com_wpdna = 0;
     int is_android = 0;
     int is_sony_net_wmfu = 0;
@@ -2002,13 +2032,13 @@ LIBMTP_mtpdevice_t *LIBMTP_Open_Raw_Device_Uncached(LIBMTP_raw_device_t *rawdevi
     /* Loop over extensions and set flags */
     while (tmpext != NULL) {
       if (!strcmp(tmpext->name, "microsoft.com/WPDNA"))
-	is_microsoft_com_wpdna = 1;
+        is_microsoft_com_wpdna = 1;
       if (!strcmp(tmpext->name, "android.com"))
-	is_android = 1;
+        is_android = 1;
       if (!strcmp(tmpext->name, "sony.net/WMFU"))
-	is_sony_net_wmfu = 1;
+        is_sony_net_wmfu = 1;
       if (!strcmp(tmpext->name, "sonyericsson.com/SE"))
-	is_sonyericsson_com_se = 1;
+        is_sonyericsson_com_se = 1;
       tmpext = tmpext->next;
     }
 
@@ -2103,60 +2133,57 @@ LIBMTP_mtpdevice_t *LIBMTP_Open_Raw_Device_Uncached(LIBMTP_raw_device_t *rawdevi
     // Could not detect object bitsize, assume 32 bits
     bs = 32;
   }
-  mtp_device->object_bitsize = bs;
+  tmp_device->object_bitsize = bs;
 
   /* No Errors yet for this device */
-  mtp_device->errorstack = NULL;
+  tmp_device->errorstack = NULL;
 
   /* Default Max Battery Level, we will adjust this if possible */
-  mtp_device->maximum_battery_level = 100;
+  tmp_device->maximum_battery_level = 100;
 
   /* Check if device supports reading maximum battery level */
-  if(!FLAG_BROKEN_BATTERY_LEVEL(ptp_usb) &&
+  if (!FLAG_BROKEN_BATTERY_LEVEL(ptp_usb) &&
      ptp_property_issupported( current_params, PTP_DPC_BatteryLevel)) {
     PTPDevicePropDesc dpd;
 
     /* Try to read maximum battery level */
-    if(ptp_getdevicepropdesc(current_params,
-			     PTP_DPC_BatteryLevel,
-			     &dpd) != PTP_RC_OK) {
-      add_error_to_errorstack(mtp_device,
-			      LIBMTP_ERROR_CONNECTING,
-			      "Unable to read Maximum Battery Level for this "
-			      "device even though the device supposedly "
-			      "supports this functionality");
+    ptp_err = ptp_getdevicepropdesc(current_params, PTP_DPC_BatteryLevel, &dpd);
+    if (ptp_err != PTP_RC_OK) {
+      add_error_to_errorstack(tmp_device, LIBMTP_ERROR_CONNECTING,
+                              "Unable to read Maximum Battery Level for this "
+                              "device even though the device supposedly "
+                              "supports this functionality");
     }
 
     /* TODO: is this appropriate? */
     /* If max battery level is 0 then leave the default, otherwise assign */
     if (dpd.FORM.Range.MaximumValue.u8 != 0) {
-      mtp_device->maximum_battery_level = dpd.FORM.Range.MaximumValue.u8;
+      tmp_device->maximum_battery_level = dpd.FORM.Range.MaximumValue.u8;
     }
 
     ptp_free_devicepropdesc(&dpd);
   }
 
   /* Set all default folders to 0xffffffffU (root directory) */
-  mtp_device->default_music_folder = 0xffffffffU;
-  mtp_device->default_playlist_folder = 0xffffffffU;
-  mtp_device->default_picture_folder = 0xffffffffU;
-  mtp_device->default_video_folder = 0xffffffffU;
-  mtp_device->default_organizer_folder = 0xffffffffU;
-  mtp_device->default_zencast_folder = 0xffffffffU;
-  mtp_device->default_album_folder = 0xffffffffU;
-  mtp_device->default_text_folder = 0xffffffffU;
+  tmp_device->default_music_folder = 0xffffffffU;
+  tmp_device->default_playlist_folder = 0xffffffffU;
+  tmp_device->default_picture_folder = 0xffffffffU;
+  tmp_device->default_video_folder = 0xffffffffU;
+  tmp_device->default_organizer_folder = 0xffffffffU;
+  tmp_device->default_zencast_folder = 0xffffffffU;
+  tmp_device->default_album_folder = 0xffffffffU;
+  tmp_device->default_text_folder = 0xffffffffU;
 
   /* Set initial storage information */
-  mtp_device->storage = NULL;
-  if (LIBMTP_Get_Storage(mtp_device, LIBMTP_STORAGE_SORTBY_NOTSORTED) == -1) {
-    add_error_to_errorstack(mtp_device,
-			    LIBMTP_ERROR_GENERAL,
-			    "Get Storage information failed.");
-    mtp_device->storage = NULL;
+  tmp_device->storage = NULL;
+  if (LIBMTP_Get_Storage(tmp_device, LIBMTP_STORAGE_SORTBY_NOTSORTED) == -1) {
+    add_error_to_errorstack(tmp_device, LIBMTP_ERROR_GENERAL,
+                            "Get Storage information failed.");
+    tmp_device->storage = NULL;
   }
 
-
-  return mtp_device;
+  *mtp_device = tmp_device;
+  return LIBMTP_OK;
 }
 
 LIBMTP_mtpdevice_t *LIBMTP_Open_Raw_Device(LIBMTP_raw_device_t *rawdevice)
