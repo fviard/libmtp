@@ -1217,6 +1217,8 @@
   { "Nokia", 0x0421, "C5-00", 0x0592, DEVICE_FLAG_NONE },
   /* https://sourceforge.net/p/libmtp/bugs/1457/ */
   { "Nokia", 0x0421, "C5-00 (ID2)", 0x0595, DEVICE_FLAG_NONE },
+  /* https://sourceforge.net/p/libmtp/feature-requests/235/ */
+  { "Nokia", 0x0421, "500", 0x05c0, DEVICE_FLAG_NONE },
   { "Nokia", 0x0421, "808 PureView", 0x05d3, DEVICE_FLAG_NONE },
   // Reported by Sampo Savola
   // Covers Lumia 920, 820 and probably any WP8 device.
@@ -1842,6 +1844,8 @@
       DEVICE_FLAG_NONE },
   { "SONY", 0x0fce, "Xperia Z1 Compact D5503", 0x01a7,
       DEVICE_FLAG_NONE },
+  { "SONY", 0x0fce, "Xperia T2 Ultra MTP", 0x01a9,
+      DEVICE_FLAG_NONE },
   { "SONY", 0x0fce, "Xperia M2 MTP", 0x01aa,
       DEVICE_FLAG_NONE },
   { "SONY", 0x0fce, "Xperia M2 Dual MTP", 0x01ab,
@@ -1882,8 +1886,13 @@
       DEVICE_FLAG_NONE },
   { "SONY", 0x0fce, "XPeria Z5 Compact MTP", 0x01da,
       DEVICE_FLAG_NONE },
+  /* https://sourceforge.net/p/libmtp/feature-requests/236/ */
+  { "SONY", 0x0fce, "XPeria Z5 Premium Dual Sim MTP", 0x01db,
+      DEVICE_FLAG_NONE },
   /* https://sourceforge.net/p/libmtp/bugs/1649/ */
   { "SONY", 0x0fce, "XPeria XA MTP", 0x01de,
+      DEVICE_FLAG_NONE },
+  { "SONY", 0x0fce, "XPeria X MTP", 0x01e0,
       DEVICE_FLAG_NONE },
   { "SONY", 0x0fce, "XPeria XZ MTP", 0x01e7,
       DEVICE_FLAG_NONE },
@@ -1958,6 +1967,8 @@
       DEVICE_FLAG_NONE },
   { "SONY", 0x0fce, "Xperia Z1 Compact D5503 MTP+CDROM", 0x41a7,
       DEVICE_FLAG_NONE },
+  { "SONY", 0x0fce, "Xperia T2 Ultra MTP+CDROM", 0x41a9,
+      DEVICE_FLAG_NONE },
   { "SONY", 0x0fce, "Xperia M2 MTP+CDROM", 0x41aa,
       DEVICE_FLAG_NONE },
   { "SONY", 0x0fce, "Xperia M2 Dual MTP+CDROM", 0x41ab,
@@ -1998,7 +2009,11 @@
       DEVICE_FLAG_NONE },
   { "SONY", 0x0fce, "XPeria Z5 Compact MTP+CDROM", 0x41da,
       DEVICE_FLAG_NONE },
+  { "SONY", 0x0fce, "XPeria Z5 Premium Dual Sim MTP+CDROM", 0x41db,
+      DEVICE_FLAG_NONE },
   { "SONY", 0x0fce, "XPeria XA MTP+CDROM", 0x41de,
+      DEVICE_FLAG_NONE },
+  { "SONY", 0x0fce, "XPeria X MTP+CDROM", 0x41e0,
       DEVICE_FLAG_NONE },
   { "SONY", 0x0fce, "XPeria XZ MTP+CDROM", 0x41e7,
       DEVICE_FLAG_NONE },
@@ -2094,6 +2109,8 @@
       DEVICE_FLAG_NONE },
   { "SONY", 0x0fce, "Xperia Z1 Compact MTP+ADB", 0x51a7,
       DEVICE_FLAG_NONE },
+  { "SONY", 0x0fce, "Xperia T2 Ultra MTP+ADB", 0x51a9,
+      DEVICE_FLAG_NONE },
   { "SONY", 0x0fce, "Xperia M2 MTP+ADB", 0x51aa,
       DEVICE_FLAG_NONE },
   { "SONY", 0x0fce, "Xperia M2 Dual MTP+ADB", 0x51ab,
@@ -2134,7 +2151,11 @@
       DEVICE_FLAG_NONE },
   { "SONY", 0x0fce, "XPeria Z5 Compact MTP+ADB", 0x51da,
       DEVICE_FLAG_NONE },
+  { "SONY", 0x0fce, "XPeria Z5 Premium Dual Sim MTP+ADB", 0x51db,
+      DEVICE_FLAG_NONE },
   { "SONY", 0x0fce, "XPeria XA MTP+ADB", 0x51de,
+      DEVICE_FLAG_NONE },
+  { "SONY", 0x0fce, "XPeria X MTP+ADB", 0x51e0,
       DEVICE_FLAG_NONE },
   { "SONY", 0x0fce, "XPeria XZ MTP+ADB", 0x51e7,
       DEVICE_FLAG_NONE },
@@ -2189,6 +2210,9 @@
   { "Motorola", 0x22b8, "V3m/V750 verizon", 0x2a65,
       DEVICE_FLAG_BROKEN_SET_OBJECT_PROPLIST |
       DEVICE_FLAG_BROKEN_MTPGETOBJPROPLIST_ALL },
+  /* https://sourceforge.net/p/libmtp/support-requests/130/ */
+  { "Motorola", 0x22b8, "X 2nd edition XT1097 (MTP)", 0x2e24,
+      DEVICE_FLAGS_ANDROID_BUGS },
   { "Motorola", 0x22b8, "Atrix/Razr HD (MTP)", 0x2e32,
       DEVICE_FLAGS_ANDROID_BUGS },
   { "Motorola", 0x22b8, "Atrix/Razr HD (MTP+ADB)", 0x2e33,
@@ -3117,16 +3141,18 @@
   /* https://sourceforge.net/p/libmtp/bugs/1582/ */
   { "nVidia", 0x0955, "Jetson TX1", 0x7721,
       DEVICE_FLAGS_ANDROID_BUGS },
-  { "nVidia", 0x0955, "Shield (ID1)", 0xb400,
+  { "nVidia", 0x0955, "Shield (MTP+ADB)", 0xb400,
       DEVICE_FLAGS_ANDROID_BUGS },
   /* https://sourceforge.net/p/libmtp/bugs/1447/ */
-  { "nVidia", 0x0955, "Shield (Tegra4)", 0xb401,
+  { "nVidia", 0x0955, "Shield (MTP)", 0xb401,
       DEVICE_FLAGS_ANDROID_BUGS },
   /* https://sourceforge.net/p/libmtp/bugs/1087/ */
   { "nVidia", 0x0955, "Tegra Note", 0xcf02,
       DEVICE_FLAGS_ANDROID_BUGS },
+  { "nVidia", 0x0955, "Shield Tablet (MTP+ADB)", 0xcf05,
+      DEVICE_FLAGS_ANDROID_BUGS },
   /* benpro82@gmail.com */
-  { "nVidia", 0x0955, "Shield (ID2)", 0xcf07,
+  { "nVidia", 0x0955, "Shield Tablet (MTP)", 0xcf07,
       DEVICE_FLAGS_ANDROID_BUGS },
 
   /*
@@ -3188,7 +3214,7 @@
   { "Amazon", 0x1949, "Kindle Fire 5", 0x0222,
       DEVICE_FLAGS_ANDROID_BUGS },
   /* https://sourceforge.net/p/libmtp/bugs/1718/ */
-  { "Amazon", 0x1949, "Kindle Fire 8", 0x0261,
+  { "Amazon", 0x1949, "Kindle Fire 8 (2nd ID)", 0x0261,
       DEVICE_FLAGS_ANDROID_BUGS },
   { "Amazon", 0x1949, "Fire Phone", 0x0800,
       DEVICE_FLAGS_ANDROID_BUGS },
@@ -3402,6 +3428,9 @@
       DEVICE_FLAGS_ANDROID_BUGS },
   /* https://sourceforge.net/p/libmtp/bugs/1467/ */
   { "elephone", 0x0e8d, "p6000", 0x2008,
+      DEVICE_FLAGS_ANDROID_BUGS },
+  /* https://sourceforge.net/p/libmtp/feature-requests/234/ */
+  { "DOODGE", 0x0e8d, "X6pro", 0x200a,
       DEVICE_FLAGS_ANDROID_BUGS },
   /* https://sourceforge.net/p/libmtp/feature-requests/79/ */
   { "MediaTek Inc", 0x0e8d, "Elephone P8000", 0x201d,
