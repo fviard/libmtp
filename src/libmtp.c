@@ -2175,6 +2175,8 @@ LIBMTP_err_t LIBMTP_Open_Raw_Device_Uncached_V2(LIBMTP_raw_device_t *raw_device,
 
   /* No Errors yet for this device */
   tmp_device->errorstack = NULL;
+  // Error stack enabled by default
+  priv_config_set(tmp_device, DEVICE_PRIV_CONFIG_ERRORSTACK);
 
   /* Default Max Battery Level, we will adjust this if possible */
   tmp_device->maximum_battery_level = 100;
@@ -2634,8 +2636,8 @@ void LIBMTP_Release_Device(LIBMTP_mtpdevice_t *device)
  * directly.
  */
 static void add_error_to_errorstack(LIBMTP_mtpdevice_t *device,
-				    LIBMTP_error_number_t errornumber,
-				    char const * const error_text)
+                                    LIBMTP_error_number_t errornumber,
+                                    char const * const error_text)
 {
   LIBMTP_error_t *newerror;
 
@@ -2643,6 +2645,8 @@ static void add_error_to_errorstack(LIBMTP_mtpdevice_t *device,
     LIBMTP_ERROR("LIBMTP PANIC: Trying to add error to a NULL device!\n");
     return;
   }
+  if (!priv_config_is_enabled(device, DEVICE_PRIV_CONFIG_ERRORSTACK))
+    return;
   newerror = (LIBMTP_error_t *) malloc(sizeof(LIBMTP_error_t));
   newerror->errornumber = errornumber;
   newerror->error_text = strdup(error_text);
@@ -2663,24 +2667,26 @@ static void add_error_to_errorstack(LIBMTP_mtpdevice_t *device,
  * Adds an error from the PTP layer to the error stack.
  */
 static void add_ptp_error_to_errorstack(LIBMTP_mtpdevice_t *device,
-					uint16_t ptp_error,
-					char const * const error_text)
+                                        uint16_t ptp_error,
+                                        char const * const error_text)
 {
   PTPParams      *params = (PTPParams *) device->params;
 
   if (device == NULL) {
     LIBMTP_ERROR("LIBMTP PANIC: Trying to add PTP error to a NULL device!\n");
     return;
-  } else {
-    char outstr[256];
-    snprintf(outstr, sizeof(outstr), "PTP Layer error %04x: %s", ptp_error, error_text);
-    outstr[sizeof(outstr)-1] = '\0';
-    add_error_to_errorstack(device, LIBMTP_ERROR_PTP_LAYER, outstr);
-
-    snprintf(outstr, sizeof(outstr), "Error %04x: %s", ptp_error, ptp_strerror(ptp_error, params->deviceinfo.VendorExtensionID));
-    outstr[sizeof(outstr)-1] = '\0';
-    add_error_to_errorstack(device, LIBMTP_ERROR_PTP_LAYER, outstr);
   }
+  if (!priv_config_is_enabled(device, DEVICE_PRIV_CONFIG_ERRORSTACK))
+    return;
+
+  char outstr[256];
+  snprintf(outstr, sizeof(outstr), "PTP Layer error %04x: %s", ptp_error, error_text);
+  outstr[sizeof(outstr)-1] = '\0';
+  add_error_to_errorstack(device, LIBMTP_ERROR_PTP_LAYER, outstr);
+
+  snprintf(outstr, sizeof(outstr), "Error %04x: %s", ptp_error, ptp_strerror(ptp_error, params->deviceinfo.VendorExtensionID));
+  outstr[sizeof(outstr)-1] = '\0';
+  add_error_to_errorstack(device, LIBMTP_ERROR_PTP_LAYER, outstr);
 }
 
 /**
@@ -2725,7 +2731,7 @@ void LIBMTP_Clear_Errorstack(LIBMTP_mtpdevice_t *device)
       LIBMTP_error_t *tmp2;
 
       if (tmp->error_text != NULL) {
-	free(tmp->error_text);
+        free(tmp->error_text);
       }
       tmp2 = tmp;
       tmp = tmp->next;
@@ -2750,14 +2756,39 @@ void LIBMTP_Dump_Errorstack(LIBMTP_mtpdevice_t *device)
 
     while (tmp != NULL) {
       if (tmp->error_text != NULL) {
-	LIBMTP_ERROR("Error %d: %s\n", tmp->errornumber, tmp->error_text);
+        LIBMTP_ERROR("Error %d: %s\n", tmp->errornumber, tmp->error_text);
       } else {
-	LIBMTP_ERROR("Error %d: (unknown)\n", tmp->errornumber);
+        LIBMTP_ERROR("Error %d: (unknown)\n", tmp->errornumber);
       }
       tmp = tmp->next;
     }
   }
 }
+
+/**
+ * This function enable or disable the error stack for a device.
+ * (If the errorstack is disabled, you don't have to take care to
+ * clear it anymore)
+ * Errorstack is enabled for opened devices by default.
+ * @param device a pointer to the MTP device to toggle the error
+ *        stack feature for.
+ * @param enabled boolean to indicate the new state.
+ *        1 to enable, 0 to disable
+ */
+void LIBMTP_Toggle_Errorstack(LIBMTP_mtpdevice_t *device, int enabled)
+{
+  if (device == NULL)
+    return;
+  if (enabled) {
+    priv_config_set(device, DEVICE_PRIV_CONFIG_ERRORSTACK);
+  } else {
+    // Disable the error stack and then clear any existing error.
+    priv_config_unset(device, DEVICE_PRIV_CONFIG_ERRORSTACK);
+    LIBMTP_Clear_Errorstack(device);
+  }
+  return;
+}
+
 
 /**
  * This command gets all handles and stuff by FAST directory retrieveal
@@ -4575,7 +4606,8 @@ LIBMTP_file_t *LIBMTP_Get_Filemetadata(LIBMTP_mtpdevice_t *device, uint32_t cons
 
   // Get all the handles if we haven't already done that
   // (Only on cached devices.)
-  if (device->cached && params->nrofobjects == 0) {
+  if (priv_config_is_enabled(device, DEVICE_PRIV_CONFIG_CACHED)
+      && params->nrofobjects == 0) {
     flush_handles(device);
   }
 

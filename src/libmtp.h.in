@@ -909,6 +909,7 @@ LIBMTP_err_t LIBMTP_Check_Capability_Supported(LIBMTP_mtpdevice_t *, LIBMTP_devi
 LIBMTP_error_t *LIBMTP_Get_Errorstack(LIBMTP_mtpdevice_t*);
 void LIBMTP_Clear_Errorstack(LIBMTP_mtpdevice_t*);
 void LIBMTP_Dump_Errorstack(LIBMTP_mtpdevice_t*);
+void LIBMTP_Toggle_Errorstack(LIBMTP_mtpdevice_t*, int);
 
 /**
  * Deprecated api, do not use anymore!

@@ -114,3 +114,4 @@ LIBMTP_Check_Capability
 LIBMTP_Custom_Operation
 LIBMTP_Read_Event_With_Timeout
 LIBMTP_Open_Raw_Device_Uncached_V2
+LIBMTP_Toggle_Errorstack
