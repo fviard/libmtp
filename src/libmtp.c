@@ -87,6 +87,17 @@
  */
 int LIBMTP_debug = LIBMTP_DEBUG_NONE;
 
+/**
+ * Internal config flags for an opened device
+ * Used by "internal_config" field of LIBMTP_mtpdevice_struct
+ */
+#define DEVICE_PRIV_CONFIG_NONE        0x00
+/* Device is opened in "cached" mode */
+#define DEVICE_PRIV_CONFIG_CACHED      0x01
+/* An error stack will be filled with error encountered with this device */
+#define DEVICE_PRIV_CONFIG_ERRORSTACK  0x02
+
+
 
 /*
  * This is a mapping between libmtp internal MTP filetypes and
@@ -133,6 +144,12 @@ static propertymap_t *g_propertymap = NULL;
 /*
  * Forward declarations of local (static) functions.
  */
+static inline int priv_config_is_enabled(LIBMTP_mtpdevice_t *device,
+                                         unsigned int priv_config_flag);
+static inline void priv_config_set(LIBMTP_mtpdevice_t *device,
+                                   unsigned int priv_config_flag);
+static inline void priv_config_unset(LIBMTP_mtpdevice_t *device,
+                                     unsigned int priv_config_flag);
 static LIBMTP_err_t register_filetype(char const * const description,
 					LIBMTP_filetype_t const id, uint16_t const ptp_id);
 static void init_filemap();
@@ -303,6 +320,27 @@ static int has_flac_extension(char *name) {
 }
 
 
+/**
+ * Is a specific device internal config flag enabled.
+ * Returns 1 if True, and 0 otherwise.
+ */
+static inline int priv_config_is_enabled(LIBMTP_mtpdevice_t *device,
+                                         unsigned int priv_config_flag)
+{
+  return (device->internal_config & priv_config_flag)? 1 : 0;
+}
+
+static inline void priv_config_set(LIBMTP_mtpdevice_t *device,
+                                   unsigned int priv_config_flag)
+{
+  device->internal_config |= priv_config_flag;
+}
+
+static inline void priv_config_unset(LIBMTP_mtpdevice_t *device,
+                                    unsigned int priv_config_flag)
+{
+  device->internal_config &= ~priv_config_flag;
+}
 
 /**
  * Create a new file mapping entry
@@ -1934,7 +1972,7 @@ LIBMTP_err_t LIBMTP_Open_Raw_Device_Uncached_V2(LIBMTP_raw_device_t *raw_device,
   }
   memset(tmp_device, 0, sizeof(LIBMTP_mtpdevice_t));
   // Non-cached by default
-  tmp_device->cached = 0;
+  priv_config_unset(tmp_device, DEVICE_PRIV_CONFIG_CACHED);
 
   /* Create PTP params */
   current_params = (PTPParams *) malloc(sizeof(PTPParams));
@@ -2212,7 +2250,7 @@ LIBMTP_mtpdevice_t *LIBMTP_Open_Raw_Device(LIBMTP_raw_device_t *rawdevice)
   }
 
   // Set up this device as cached
-  mtp_device->cached = 1;
+  priv_config_set(mtp_device, DEVICE_PRIV_CONFIG_CACHED);
   /*
    * Then get the handles and try to locate the default folders.
    * This has the desired side effect of caching all handles from
@@ -2234,6 +2272,7 @@ LIBMTP_mtpdevice_t *LIBMTP_Open_Raw_Device(LIBMTP_raw_device_t *rawdevice)
  * @param out1 contains the param1 value from the raw event.
  * @return LIBMTP_OK on success, any other value means the polling loop shall be
  * terminated immediately for this session.
+ * @see LIBMTP_Read_Event_With_Timeout()
  */
 LIBMTP_err_t LIBMTP_Read_Event(LIBMTP_mtpdevice_t *device, LIBMTP_event_t *event, uint32_t *out1)
 {
@@ -2945,7 +2984,7 @@ static LIBMTP_err_t flush_handles(LIBMTP_mtpdevice_t *device)
   uint32_t i;
   uint16_t ptp_ret;
 
-  if (!device->cached) {
+  if (!priv_config_is_enabled(device, DEVICE_PRIV_CONFIG_CACHED)) {
     return LIBMTP_OK;
   }
 
@@ -4678,7 +4717,7 @@ LIBMTP_file_t * LIBMTP_Get_Files_And_Folders(LIBMTP_mtpdevice_t *device,
   uint16_t ret;
   int i = 0;
 
-  if (device->cached) {
+  if (priv_config_is_enabled(device, DEVICE_PRIV_CONFIG_CACHED)) {
     // This function is only supposed to be used by devices
     // opened as uncached!
     LIBMTP_ERROR("tried to use %s on a cached device!\n",

@@ -721,8 +721,15 @@ struct LIBMTP_mtpdevice_struct {
   void *cd;
   /** Extension list */
   LIBMTP_device_extension_t *extensions;
-  /** Whether the device uses caching, only used internally */
-  int cached;
+  /**
+   * INTERNAL USE ONLY
+   * Bitflags, whether the device uses caching, errorstack
+   *
+   * legacy info:
+   * internal_config type comes from reusing previous field
+   * "int cached" to maintain the abi compatibility.
+   */
+  unsigned int internal_config;
 
   /** Pointer to next device in linked list; NULL if this is the last device */
   LIBMTP_mtpdevice_t *next;
